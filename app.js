@@ -151,7 +151,7 @@ function resetForm() {
             i.value = "";
         }
     });
-    document.getElementById('thick').selectedIndex = 0;
+    document.getElementById('thick').value = '0.500';
     document.getElementById('lipLeft').value = "0.188";
     document.getElementById('lipRight').value = "0.188";
     document.getElementById('display-frame').classList.remove('is-live');
