@@ -3,35 +3,131 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DBS Production Manager V12.2</title>
+    <title>DBS U-Shape Calculator v12.2</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         *, *::before, *::after { box-sizing: border-box; }
-        body { 
-            background-color: #f1f5f9; 
-            font-family: 'Plus Jakarta Sans', sans-serif; 
-            transition: all 0.3s ease; 
+        body {
+            background-color: #f1f5f9;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            transition: background-color 0.3s ease;
         }
-        .mode-dowel { --brand-primary: #2563eb; --brand-dark: #1e293b; }
-        .mode-dovetail { --brand-primary: #d97706; --brand-dark: #451a03; }
-        .mode-hybrid { --brand-primary: #4f46e5; --brand-dark: #311042; }
-        
-        .commercial-shadow { 
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03), 0 20px 25px -5px rgba(0, 0, 0, 0.05); 
+        .mode-dowel { --brand-primary: #2563eb; --brand-accent: #3b82f6; --brand-muted: #eff6ff; }
+        .mode-dovetail { --brand-primary: #d97706; --brand-accent: #ea580c; --brand-muted: #fff7ed; }
+        .mode-hybrid { --brand-primary: #4f46e5; --brand-accent: #6366f1; --brand-muted: #eef2ff; }
+        .mode-threeQuarterFront { --brand-primary: #b45309; --brand-accent: #d97706; --brand-muted: #fffbeb; }
+
+        .commercial-shadow {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03), 0 20px 25px -5px rgba(0, 0, 0, 0.05);
         }
-        .input-group label { 
-            @apply block text-[11px] font-bold text-slate-500 uppercase mb-1.5 tracking-wider; 
+
+        .input-group label {
+            display: block;
+            font-size: 11px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+            letter-spacing: 0.05em;
         }
-        .input-group input, .input-group select { 
-            @apply border border-slate-200 rounded-lg p-2.5 w-full bg-slate-50 font-medium focus:bg-white focus:border-slate-400 focus:ring-2 focus:ring-slate-100 outline-none transition-all text-sm text-slate-800 shadow-inner; 
+        .input-group input,
+        .input-group select {
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            padding: 0.625rem;
+            width: 100%;
+            background-color: #f8fafc;
+            font-weight: 500;
+            font-size: 0.875rem;
+            color: #1e293b;
+            outline: none;
+            transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+            box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
         }
+        .input-group input:focus,
+        .input-group select:focus {
+            background-color: #fff;
+            border-color: var(--brand-primary, #94a3b8);
+            box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-primary, #94a3b8) 18%, transparent);
+        }
+        .input-group input.input-invalid {
+            border-color: #f87171;
+            background-color: #fef2f2;
+        }
+
         .arm-container { display: flex; justify-content: space-between; width: 100%; gap: 4%; }
         .arm-item { width: 48%; }
         .arm-item input { width: 100% !important; min-width: 0 !important; }
+
+        .mode-btn {
+            padding: 0.5rem 0.25rem;
+            border-radius: 0.375rem;
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            transition: all 0.15s ease;
+            text-align: center;
+            border: 1px solid transparent;
+        }
+        .mode-btn-inactive {
+            color: #64748b;
+            background: transparent;
+        }
+        .mode-btn-inactive:hover {
+            color: #334155;
+            background: rgba(255, 255, 255, 0.7);
+        }
+        .mode-btn-active {
+            color: #fff;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+        }
+
         #preview-svg { display: none; }
         .is-live #preview-svg { display: block; }
         .is-live #static-reference { display: none; }
+        .is-live #display-frame {
+            border-color: color-mix(in srgb, var(--brand-primary, #cbd5e1) 35%, #e2e8f0);
+            background: linear-gradient(180deg, #fff 0%, var(--brand-muted, #f8fafc) 100%);
+        }
+
+        .spec-chip {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            text-align: center;
+        }
+        .spec-chip .spec-label {
+            font-size: 9px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #94a3b8;
+            margin-bottom: 2px;
+        }
+        .spec-chip .spec-value {
+            font-size: 15px;
+            font-weight: 800;
+            color: #0f172a;
+            font-variant-numeric: tabular-nums;
+        }
+        .spec-chip.spec-highlight .spec-value { color: var(--brand-primary, #0f172a); }
+
+        .queue-row {
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .queue-row:hover {
+            border-color: #cbd5e1;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+        }
+
+        .sidebar-sticky {
+            position: sticky;
+            top: 1rem;
+            max-height: calc(100vh - 2rem);
+            overflow-y: auto;
+        }
 
         @media print {
             @page { size: landscape; margin: 10mm; }
@@ -40,7 +136,7 @@
             #print-items { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
             .item-container { border: 3px solid #000; padding: 12px; height: 46vh; page-break-inside: avoid; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; overflow: hidden; background: #fff; }
             svg { width: 100% !important; height: 100% !important; max-height: none !important; margin: 0 !important; }
-            .print-header-single { 
+            .print-header-single {
                 width: 100%; border-bottom: 2px solid #000; padding: 6px 0; margin-bottom: 8px;
                 font-size: 13px; font-weight: 900; display: flex; align-items: center; justify-content: space-between;
                 background: #fff; text-transform: uppercase; white-space: nowrap;
@@ -51,54 +147,56 @@
         }
     </style>
 </head>
-<body id="main-body" class="p-4 lg:p-8 bg-slate-50 text-slate-800">
+<body id="main-body" class="p-4 lg:p-8 mode-dovetail text-slate-800">
 
     <div class="max-w-7xl mx-auto no-print">
-        <div class="bg-white px-8 py-5 rounded-2xl commercial-shadow flex flex-col sm:flex-row justify-between items-center mb-6 gap-4 border border-slate-100">
-            <div class="flex items-center gap-5">
-                <div class="h-12 w-24 bg-slate-900 rounded-xl flex items-center justify-center text-white font-black tracking-wider text-xl">DBS</div>
+        <header class="bg-white px-6 py-4 sm:px-8 sm:py-5 rounded-2xl commercial-shadow flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 border border-slate-100">
+            <div class="flex items-center gap-4 sm:gap-5">
+                <div class="h-11 w-20 sm:h-12 sm:w-24 bg-slate-900 rounded-xl flex items-center justify-center text-white font-black tracking-wider text-lg sm:text-xl shrink-0">DBS</div>
                 <div>
-                    <h1 class="text-xl font-extrabold text-slate-900 tracking-tight leading-none">U-Shape Calculator</h1>
+                    <h1 class="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight leading-none">U-Shape Calculator</h1>
                     <p class="text-xs text-slate-400 mt-1.5 font-medium">Production Management Console v12.2</p>
                 </div>
             </div>
-            <div class="flex items-center gap-3">
-                <div id="status-chip" class="px-3.5 py-1.5 bg-slate-100 text-slate-700 text-[10px] font-bold uppercase rounded-full tracking-widest border border-slate-200">
-                    Active: Dovetail
-                </div>
+            <div id="status-chip" class="px-3.5 py-1.5 bg-orange-50 border border-orange-200 text-orange-700 text-[10px] font-bold uppercase rounded-full tracking-widest">
+                Active: Dovetail
             </div>
-        </div>
+        </header>
 
-        <div id="header-bar" class="bg-slate-900 px-6 py-4 text-white flex justify-between items-center rounded-2xl commercial-shadow mb-6 border border-slate-800 transition-all">
-            <h2 id="header-title" class="text-xs font-bold tracking-widest uppercase opacity-80">Dovetail Mode</h2>
-            <div class="flex gap-3">
-                <button onclick="window.print()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors shadow-sm">Print Queue</button>
-                <button onclick="clearQueue()" class="bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors shadow-sm">Clear All</button>
+        <div id="header-bar" class="bg-orange-950 px-5 sm:px-6 py-4 text-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 rounded-2xl commercial-shadow mb-6 border-t-2 border-orange-600 transition-all">
+            <div>
+                <h2 id="header-title" class="text-xs font-bold tracking-widest uppercase opacity-90">Dovetail Mode</h2>
+                <p id="queue-summary" class="text-[10px] text-white/60 mt-1 font-medium">0 items in queue</p>
+            </div>
+            <div class="flex gap-2 w-full sm:w-auto">
+                <button id="print-btn" onclick="window.print()" disabled class="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-60 text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors shadow-sm">Print Queue</button>
+                <button onclick="clearQueue()" class="flex-1 sm:flex-none bg-rose-600 hover:bg-rose-500 text-white px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors shadow-sm">Clear All</button>
             </div>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div class="lg:col-span-4 xl:col-span-3 space-y-6">
-                <div class="bg-white p-5 rounded-2xl border border-slate-100 commercial-shadow">
+            <div class="lg:col-span-4 xl:col-span-3 space-y-6 sidebar-sticky">
+                <section class="bg-white p-5 rounded-2xl border border-slate-100 commercial-shadow">
                     <h3 class="text-[10px] font-bold text-slate-400 uppercase mb-3.5 tracking-widest border-b border-slate-100 pb-2">Construction Mode</h3>
-                    <div class="bg-slate-100 p-1.5 rounded-lg border flex flex-col gap-y-1.5 mb-1 shadow-inner">
+                    <div class="bg-slate-100 p-1.5 rounded-xl border border-slate-200/80 flex flex-col gap-1.5 shadow-inner">
                         <div class="grid grid-cols-3 gap-1 w-full">
-                            <button id="btn-dovetail" onclick="setMode('dovetail')" class="py-2 rounded-md text-[9px] font-black uppercase transition-all bg-orange-600 text-white shadow-sm text-center">Dovetail</button>
-                            <button id="btn-dowel" onclick="setMode('dowel')" class="py-2 rounded-md text-[9px] font-black uppercase transition-all text-slate-500 hover:text-slate-700 text-center">Dowel</button>
-                            <button id="btn-hybrid" onclick="setMode('hybrid')" class="py-2 rounded-md text-[9px] font-black uppercase transition-all text-slate-500 hover:text-slate-700 text-center">DT Frt / DWL Bk</button>
+                            <button id="btn-dovetail" type="button" onclick="setMode('dovetail')" class="mode-btn mode-btn-active bg-orange-600">Dovetail</button>
+                            <button id="btn-dowel" type="button" onclick="setMode('dowel')" class="mode-btn mode-btn-inactive">Dowel</button>
+                            <button id="btn-hybrid" type="button" onclick="setMode('hybrid')" class="mode-btn mode-btn-inactive">DT / DWL</button>
                         </div>
-                        <div class="w-full">
-                            <button id="btn-34front" onclick="setMode('threeQuarterFront')" class="w-full py-2 rounded-md text-[9px] font-black uppercase transition-all text-slate-500 hover:text-slate-700 text-center whitespace-nowrap">3/4" Front Only Spec</button>
-                        </div>
+                        <button id="btn-34front" type="button" onclick="setMode('threeQuarterFront')" class="mode-btn mode-btn-inactive w-full whitespace-nowrap">3/4" Front Only Spec</button>
                     </div>
-                </div>
+                </section>
 
-                <div class="bg-white p-5 rounded-2xl border border-slate-100 commercial-shadow">
+                <section class="bg-white p-5 rounded-2xl border border-slate-100 commercial-shadow">
                     <h3 class="text-[10px] font-bold text-slate-400 uppercase mb-4 tracking-widest border-b border-slate-100 pb-2">Specification Metrics</h3>
                     <div id="entry-form" class="flex flex-col gap-4">
-                        <div class="input-group"><label>Line Label Reference</label><input type="text" id="label" placeholder="e.g. Unit 1" maxlength="10" oninput="validateInput()"></div>
-                        <div class="input-group"><label>Quantity Required</label><input type="number" id="qty" placeholder="1" oninput="validateInput()"></div>
-                        <div class="input-group"><label>Material Thickness (Sides/Back)</label>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="input-group"><label for="label">Line Label</label><input type="text" id="label" placeholder="Unit 1" maxlength="10" oninput="validateInput()"></div>
+                            <div class="input-group"><label for="qty">Quantity</label><input type="number" id="qty" placeholder="1" min="1" oninput="validateInput()"></div>
+                        </div>
+                        <div class="input-group">
+                            <label for="thick">Material Thickness (Sides/Back)</label>
                             <select id="thick" onchange="validateInput()">
                                 <option value="0.472">12mm (0.472)</option>
                                 <option value="0.500">1/2" (0.500)</option>
@@ -107,54 +205,79 @@
                                 <option value="0.750">3/4" (0.750)</option>
                             </select>
                         </div>
-                        <div class="input-group"><label>Box Outer Width (W)*</label><input type="text" id="width" placeholder="0.000" oninput="validateInput()"></div>
-                        <div class="input-group"><label>Box Outer Depth (D)*</label><input type="text" id="depth" placeholder="0.000" oninput="validateInput()"></div>
-                        <div class="input-group"><label>Box Outer Height (H)*</label><input type="text" id="height" placeholder="0.000" oninput="validateInput()"></div>
-                        
-                        <div id="lip-fields-container" class="border-t border-slate-100 pt-4 flex flex-col gap-4 hidden">
-                            <div class="input-group"><label>Front Left Lip Overlay*</label><input type="text" id="lipLeft" value="0.188" oninput="validateInput()"></div>
-                            <div class="input-group"><label>Front Right Lip Overlay*</label><input type="text" id="lipRight" value="0.188" oninput="validateInput()"></div>
+
+                        <div class="rounded-xl border border-slate-100 bg-slate-50/80 p-3 space-y-3">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Box Outer Dimensions</p>
+                            <div class="input-group"><label for="width">Width (W)*</label><input type="text" id="width" placeholder='e.g. 20 or 19 1/2' oninput="validateInput()"></div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div class="input-group"><label for="depth">Depth (D)*</label><input type="text" id="depth" placeholder="0.000" oninput="validateInput()"></div>
+                                <div class="input-group"><label for="height">Height (H)*</label><input type="text" id="height" placeholder="0.000" oninput="validateInput()"></div>
+                            </div>
                         </div>
 
-                        <div class="border-t border-slate-100 pt-4 flex flex-col gap-4">
-                            <div class="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200/60 shadow-inner">
-                                <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider pr-2">Auto-Flush Pocket to Inside Face</span>
-                                <input type="checkbox" id="autoPocketToggle" onchange="validateInput()" class="w-4 h-4 text-slate-900 border-slate-300 rounded focus:ring-slate-500 cursor-pointer">
+                        <div id="lip-fields-container" class="rounded-xl border border-amber-100 bg-amber-50/50 p-3 flex flex-col gap-3 hidden">
+                            <p class="text-[10px] font-bold text-amber-700 uppercase tracking-widest">Lip Overlays</p>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div class="input-group"><label for="lipLeft">Front Left Lip*</label><input type="text" id="lipLeft" value="0.188" oninput="validateInput()"></div>
+                                <div class="input-group"><label for="lipRight">Front Right Lip*</label><input type="text" id="lipRight" value="0.188" oninput="validateInput()"></div>
                             </div>
+                        </div>
 
-                            <div id="pocket-input-container" class="input-group"><label>U-Shape Pocket Depth*</label><input type="text" id="uDepth" placeholder="0.000" oninput="validateInput()"></div>
+                        <div class="rounded-xl border border-slate-100 bg-slate-50/80 p-3 space-y-3">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">U-Shape Geometry</p>
+                            <label class="flex items-center justify-between gap-3 cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
+                                <span class="text-[10px] font-bold text-slate-600 uppercase tracking-wider leading-snug">Auto-Flush Pocket to Inside Face</span>
+                                <input type="checkbox" id="autoPocketToggle" onchange="validateInput()" class="w-4 h-4 shrink-0 accent-[var(--brand-primary)] cursor-pointer">
+                            </label>
+                            <div id="pocket-input-container" class="input-group">
+                                <label for="uDepth">U-Shape Pocket Depth*</label>
+                                <input type="text" id="uDepth" placeholder="0.000" oninput="validateInput()">
+                            </div>
                             <div class="arm-container">
-                                <div class="arm-item input-group"><label>Left Arm W*</label><input type="text" id="lArm" placeholder="0.000" oninput="validateInput()"></div>
-                                <div class="arm-item input-group"><label>Right Arm W*</label><input type="text" id="rArm" placeholder="0.000" oninput="validateInput()"></div>
+                                <div class="arm-item input-group"><label for="lArm">Left Arm W*</label><input type="text" id="lArm" placeholder="0.000" oninput="validateInput()"></div>
+                                <div class="arm-item input-group"><label for="rArm">Right Arm W*</label><input type="text" id="rArm" placeholder="0.000" oninput="validateInput()"></div>
                             </div>
                         </div>
 
-                        <div class="flex flex-col gap-2 mt-2 border-t border-slate-100 pt-4">
-                            <button id="add-btn" onclick="addToQueue()" class="w-full bg-slate-200 text-slate-400 font-extrabold py-3.5 rounded-xl uppercase tracking-widest text-xs transition-all cursor-not-allowed" disabled>Add to Queue</button>
-                            <button onclick="resetForm()" class="w-full bg-slate-50 hover:bg-slate-100 text-slate-400 font-bold py-2 rounded-lg transition-all uppercase tracking-widest text-[9px] border border-slate-200/40">Clear Input Form</button>
+                        <p id="validation-msg" class="hidden text-[11px] font-semibold text-rose-600 bg-rose-50 border border-rose-100 rounded-lg px-3 py-2 leading-snug"></p>
+
+                        <div class="flex flex-col gap-2 pt-1">
+                            <button id="add-btn" type="button" onclick="addToQueue()" class="w-full bg-slate-200 text-slate-400 font-extrabold py-3.5 rounded-xl uppercase tracking-widest text-xs transition-all cursor-not-allowed" disabled>Add to Queue</button>
+                            <button type="button" onclick="resetForm()" class="w-full bg-white hover:bg-slate-50 text-slate-500 font-bold py-2 rounded-lg transition-all uppercase tracking-widest text-[9px] border border-slate-200">Clear Input Form</button>
                         </div>
                     </div>
-                </div>
+                </section>
             </div>
 
             <div class="lg:col-span-8 xl:col-span-9 space-y-6">
-                <div id="preview-card" class="bg-white rounded-2xl commercial-shadow border border-slate-100 p-6 flex flex-col items-center">
-                    <h3 class="w-full text-[10px] font-bold text-slate-400 uppercase mb-3.5 tracking-widest border-b border-slate-100 pb-2 text-left">Vector Blueprint Preview</h3>
-                    <div id="display-frame" class="w-full h-[400px] bg-slate-50 rounded-xl flex flex-col items-center justify-center border border-dashed border-slate-200 relative overflow-hidden text-center transition-all">
-                        <div id="static-reference" class="flex flex-col items-center justify-center opacity-30 grayscale">
-                            <svg viewBox="0 0 500 400" width="240" height="192">
-                                <path d="M 100 100 L 200 100 L 200 150 L 300 150 L 300 100 L 400 100 L 400 300 L 100 300 Z" fill="#dec19e" stroke="#000" stroke-width="2" />
-                            </svg>
-                            <p class="text-[10px] font-bold tracking-widest uppercase text-slate-400 mt-4">Awaiting Complete Parameters</p>
-                        </div>
-                        <svg id="preview-svg" viewBox="0 0 500 400" class="w-full h-auto max-h-full p-4"></svg>
+                <section id="preview-card" class="bg-white rounded-2xl commercial-shadow border border-slate-100 p-5 sm:p-6">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2 mb-4">
+                        <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Vector Blueprint Preview</h3>
+                        <span id="preview-status" class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Awaiting input</span>
                     </div>
-                </div>
+                    <div id="display-frame" class="w-full h-[340px] sm:h-[400px] bg-slate-50 rounded-xl flex flex-col items-center justify-center border border-dashed border-slate-200 relative overflow-hidden text-center transition-all">
+                        <div id="static-reference" class="flex flex-col items-center justify-center opacity-40">
+                            <svg viewBox="0 0 500 400" width="220" height="176" aria-hidden="true">
+                                <path d="M 100 100 L 200 100 L 200 150 L 300 150 L 300 100 L 400 100 L 400 300 L 100 300 Z" fill="#dec19e" stroke="#64748b" stroke-width="2" />
+                            </svg>
+                            <p class="text-[10px] font-bold tracking-widest uppercase text-slate-400 mt-4 max-w-[220px] leading-relaxed">Enter all required fields to preview cut dimensions</p>
+                        </div>
+                        <svg id="preview-svg" viewBox="0 0 500 400" class="w-full h-auto max-h-full p-4" role="img" aria-label="U-shape blueprint preview"></svg>
+                    </div>
+                    <div id="spec-readout" class="hidden grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mt-4 w-full"></div>
+                </section>
 
-                <div class="bg-white rounded-2xl commercial-shadow border border-slate-100 p-6">
-                    <h3 class="text-[10px] font-bold text-slate-400 uppercase mb-4 tracking-widest border-b border-slate-100 pb-2">Active Work Order Batch Queue</h3>
-                    <div id="queue-list" class="space-y-2.5 text-sm"></div>
-                </div>
+                <section class="bg-white rounded-2xl commercial-shadow border border-slate-100 p-5 sm:p-6">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2 mb-4">
+                        <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Active Work Order Batch Queue</h3>
+                        <span id="queue-badge" class="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">0</span>
+                    </div>
+                    <div id="queue-empty" class="text-center py-10 px-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/50">
+                        <p class="text-sm font-semibold text-slate-500">Queue is empty</p>
+                        <p class="text-xs text-slate-400 mt-1">Complete the form and click <strong>Add to Queue</strong> to build a print batch.</p>
+                    </div>
+                    <div id="queue-list" class="space-y-2.5 text-sm hidden"></div>
+                </section>
             </div>
         </div>
     </div>

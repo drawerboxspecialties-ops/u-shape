@@ -4,11 +4,20 @@ import { FORMULA_CONFIG } from './formulas.js';
 let queue = [];
 let currentMode = 'dovetail';
 
+const MODE_BTN_ACTIVE = 'mode-btn mode-btn-active';
+const MODE_BTN_INACTIVE = 'mode-btn mode-btn-inactive';
+
 try {
     const cachedQueue = localStorage.getItem('dbs_production_queue');
     if (cachedQueue) queue = JSON.parse(cachedQueue);
 } catch (e) {
     console.error("Could not load cached production queue", e);
+}
+
+function escapeHTML(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[char]));
 }
 
 function parseFraction(val) {
@@ -44,10 +53,123 @@ function fmt(num) {
     return parseFloat(parseFloat(num).toFixed(3)).toString();
 }
 
+function getFormPayload() {
+    const isAutoChecked = document.getElementById('autoPocketToggle').checked;
+    return {
+        label: document.getElementById('label').value || 'Unit',
+        qty: parseFloat(document.getElementById('qty').value) || 0,
+        t: parseFloat(document.getElementById('thick').value),
+        width: parseFraction(document.getElementById('width').value),
+        depth: parseFraction(document.getElementById('depth').value),
+        height: parseFraction(document.getElementById('height').value),
+        uDepth: isAutoChecked ? 0 : parseFraction(document.getElementById('uDepth').value),
+        lArm: parseFraction(document.getElementById('lArm').value),
+        rArm: parseFraction(document.getElementById('rArm').value),
+        lipLeft: parseFraction(document.getElementById('lipLeft').value),
+        lipRight: parseFraction(document.getElementById('lipRight').value),
+        autoPocket: isAutoChecked
+    };
+}
+
+function getValidationIssue(payload) {
+    const { width: boxW, depth: boxD, lArm: leftA, rArm: rightA, t, autoPocket } = payload;
+    const deduction = FORMULA_CONFIG.getDeduction(t);
+
+    if ((leftA + rightA) >= (boxW - 1.000)) return 'Left and right arms are too wide for the box width.';
+    if (leftA >= boxW || rightA >= boxW) return 'Each arm width must be less than the outer box width.';
+
+    if (!autoPocket) {
+        const uDepthVal = payload.uDepth;
+        if (isNaN(uDepthVal) || uDepthVal >= (boxD - 1.000) || uDepthVal <= 0) {
+            return 'U-shape pocket depth must be greater than 0 and at least 1" less than box depth.';
+        }
+    } else {
+        if (currentMode === 'dovetail' && boxD <= (t + deduction)) return 'Box depth is too shallow for auto-flush dovetail at this thickness.';
+        if (currentMode === 'dowel' && boxD <= (2 * t)) return 'Box depth is too shallow for auto-flush dowel at this thickness.';
+        if (currentMode === 'hybrid' && boxD <= (t + (deduction / 2))) return 'Box depth is too shallow for auto-flush hybrid at this thickness.';
+        if (currentMode === 'threeQuarterFront' && boxD <= (0.750 + (deduction / 2))) return 'Box depth is too shallow for 3/4" front auto-flush at this thickness.';
+    }
+
+    const mathResult = FORMULA_CONFIG.calculateValues(currentMode, payload);
+    if (isNaN(mathResult.sideLen) || isNaN(mathResult.backWidth) || isNaN(mathResult.udDisplay)) {
+        return 'Calculated dimensions are invalid for the current inputs.';
+    }
+    return '';
+}
+
+function setValidationMessage(message) {
+    const el = document.getElementById('validation-msg');
+    if (!el) return;
+    if (message) {
+        el.textContent = message;
+        el.classList.remove('hidden');
+    } else {
+        el.textContent = '';
+        el.classList.add('hidden');
+    }
+}
+
+function updateSpecReadout(payload, calcs) {
+    const panel = document.getElementById('spec-readout');
+    if (!panel) return;
+
+    const chips = [
+        { label: 'Side Length', value: fmt(calcs.sideLen), highlight: true },
+        { label: 'Back Width', value: fmt(calcs.backWidth), highlight: true },
+        { label: 'U-Pocket', value: fmt(calcs.udDisplay), highlight: true },
+        { label: 'Left Arm', value: fmt(calcs.dLA) },
+        { label: 'Right Arm', value: fmt(calcs.dRA) },
+        { label: 'Notch W', value: payload.autoPocket ? '—' : fmt(calcs.notchHorizontalWidth) }
+    ];
+
+    panel.innerHTML = chips.map(chip => `
+        <div class="spec-chip${chip.highlight ? ' spec-highlight' : ''}">
+            <div class="spec-label">${chip.label}</div>
+            <div class="spec-value">${chip.value}</div>
+        </div>
+    `).join('');
+    panel.classList.remove('hidden');
+}
+
+function hideSpecReadout() {
+    const panel = document.getElementById('spec-readout');
+    if (panel) {
+        panel.innerHTML = '';
+        panel.classList.add('hidden');
+    }
+}
+
+function updateQueueChrome() {
+    const count = queue.length;
+    const summary = document.getElementById('queue-summary');
+    const badge = document.getElementById('queue-badge');
+    const printBtn = document.getElementById('print-btn');
+    const empty = document.getElementById('queue-empty');
+    const list = document.getElementById('queue-list');
+
+    if (summary) summary.textContent = `${count} item${count === 1 ? '' : 's'} in queue`;
+    if (badge) badge.textContent = String(count);
+    if (printBtn) printBtn.disabled = count === 0;
+    if (empty && list) {
+        empty.classList.toggle('hidden', count > 0);
+        list.classList.toggle('hidden', count === 0);
+    }
+}
+
+function getModeLabel(mode, autoPocket) {
+    if (mode === 'hybrid') return 'DT FRT / DWL BK';
+    if (autoPocket && mode === 'threeQuarterFront') return '3/4" FRT / DWL INSIDE';
+    if (mode === 'dovetail') return autoPocket ? 'DOVETAIL (AUTO-FLUSH)' : 'DOVETAIL';
+    if (mode === 'dowel') return autoPocket ? 'DOWEL (AUTO-FLUSH)' : 'DOWEL';
+    if (mode === 'threeQuarterFront') return '3/4" FRONT DT';
+    return mode.toUpperCase();
+}
+
 function validateInput() {
     const isAutoPocketChecked = document.getElementById('autoPocketToggle').checked;
     const pocketInputContainer = document.getElementById('pocket-input-container');
-    
+    const previewStatus = document.getElementById('preview-status');
+
     if (isAutoPocketChecked) {
         pocketInputContainer.classList.add('hidden');
     } else {
@@ -55,112 +177,116 @@ function validateInput() {
     }
 
     const fields = ['qty', 'width', 'depth', 'height', 'lArm', 'rArm'];
-    
-    if (!isAutoPocketChecked) {
-        fields.push('uDepth');
-    }
-    if (currentMode === 'threeQuarterFront') {
-        fields.push('lipLeft', 'lipRight');
-    }
-    
+    if (!isAutoPocketChecked) fields.push('uDepth');
+    if (currentMode === 'threeQuarterFront') fields.push('lipLeft', 'lipRight');
+
     const frame = document.getElementById('display-frame');
     const addBtn = document.getElementById('add-btn');
     let isComplete = true;
-    
+    let hasAnyInput = false;
+
     fields.forEach(id => {
         const el = document.getElementById(id);
-        if (!el || el.value.trim() === "") {
+        if (!el) return;
+        const empty = el.value.trim() === '';
+        if (!empty) hasAnyInput = true;
+        el.classList.remove('input-invalid');
+
+        if (empty) {
             isComplete = false;
         } else {
             const parsed = (id === 'qty') ? parseFloat(el.value) : parseFraction(el.value);
-            if (isNaN(parsed) || parsed < 0) isComplete = false;
-            if ((id !== 'lipLeft' && id !== 'lipRight') && parsed <= 0) isComplete = false;
+            if (isNaN(parsed) || parsed < 0) {
+                isComplete = false;
+                el.classList.add('input-invalid');
+            }
+            if ((id !== 'lipLeft' && id !== 'lipRight') && parsed <= 0) {
+                isComplete = false;
+                el.classList.add('input-invalid');
+            }
         }
     });
 
     if (isComplete) {
-        const boxW = parseFraction(document.getElementById('width').value);
-        const boxD = parseFraction(document.getElementById('depth').value);
-        const leftA = parseFraction(document.getElementById('lArm').value);
-        const rightA = parseFraction(document.getElementById('rArm').value);
-        const t = parseFloat(document.getElementById('thick').value);
-        const deduction = FORMULA_CONFIG.getDeduction(t);
-
-        if (isNaN(boxW) || isNaN(boxD) || isNaN(leftA) || isNaN(rightA) || isNaN(t)) {
+        const payload = getFormPayload();
+        if (isNaN(payload.width) || isNaN(payload.depth) || isNaN(payload.lArm) || isNaN(payload.rArm) || isNaN(payload.t)) {
             isComplete = false;
         } else {
-            // General Constraint: Left and right arms cannot collide or choke out total width
-            if ((leftA + rightA) >= (boxW - 1.000)) isComplete = false;
-            
-            // TRIPLE-CHECKED CORRECTION: Verified arm widths check against Outer Width (boxW), not depth
-            if (leftA >= boxW || rightA >= boxW) isComplete = false;
-
-            // Isolated Mode Track Safety Failsafes
-            if (!isAutoPocketChecked) {
-                const uDepthVal = parseFraction(document.getElementById('uDepth').value);
-                if (isNaN(uDepthVal) || uDepthVal >= (boxD - 1.000) || uDepthVal <= 0) isComplete = false;
+            const issue = getValidationIssue(payload);
+            if (issue) {
+                isComplete = false;
+                setValidationMessage(issue);
             } else {
-                if (currentMode === 'dovetail' && boxD <= (t + deduction)) isComplete = false;
-                if (currentMode === 'dowel' && boxD <= (2 * t)) isComplete = false;
-                if (currentMode === 'hybrid' && boxD <= (t + (deduction / 2))) isComplete = false;
-                if (currentMode === 'threeQuarterFront' && boxD <= (0.750 + (deduction / 2))) isComplete = false;
-            }
-
-            // Execute dry-run test using exactly packaged elements
-            if (isComplete) {
-                const testPayload = {
-                    t: t,
-                    width: boxW,
-                    depth: boxD,
-                    lArm: leftA,
-                    rArm: rightA,
-                    uDepth: isAutoPocketChecked ? 0 : parseFraction(document.getElementById('uDepth').value),
-                    lipLeft: parseFraction(document.getElementById('lipLeft').value || 0.188),
-                    lipRight: parseFraction(document.getElementById('lipRight').value || 0.188),
-                    autoPocket: isAutoPocketChecked
-                };
-                const mathResult = FORMULA_CONFIG.calculateValues(currentMode, testPayload);
-                if (isNaN(mathResult.sideLen) || isNaN(mathResult.backWidth) || isNaN(mathResult.udDisplay)) {
-                    isComplete = false;
-                }
+                setValidationMessage('');
             }
         }
+    } else if (hasAnyInput) {
+        setValidationMessage('Fill all required fields with valid positive values.');
+    } else {
+        setValidationMessage('');
     }
 
     if (isComplete) {
         frame.classList.add('is-live');
+        if (previewStatus) {
+            previewStatus.textContent = 'Live preview';
+            previewStatus.className = 'text-[10px] font-bold uppercase tracking-wider text-emerald-600';
+        }
+
         let btnColor = 'bg-orange-600 hover:bg-orange-500';
         if (currentMode === 'dowel') btnColor = 'bg-blue-600 hover:bg-blue-500';
         if (currentMode === 'hybrid') btnColor = 'bg-indigo-600 hover:bg-indigo-500';
         if (currentMode === 'threeQuarterFront') btnColor = 'bg-amber-700 hover:bg-amber-600';
-        
+
         addBtn.className = `w-full ${btnColor} text-white font-extrabold py-4 rounded-xl shadow-md transition-all uppercase tracking-widest text-xs cursor-pointer active:scale-[0.99]`;
         addBtn.disabled = false;
         updatePreview();
     } else {
         frame.classList.remove('is-live');
-        addBtn.className = "w-full bg-slate-100 text-slate-300 font-extrabold py-4 rounded-xl uppercase tracking-widest text-xs cursor-not-allowed border border-slate-200/40 shadow-none";
+        if (previewStatus) {
+            previewStatus.textContent = hasAnyInput ? 'Incomplete' : 'Awaiting input';
+            previewStatus.className = `text-[10px] font-bold uppercase tracking-wider ${hasAnyInput ? 'text-amber-600' : 'text-slate-400'}`;
+        }
+        addBtn.className = 'w-full bg-slate-100 text-slate-300 font-extrabold py-4 rounded-xl uppercase tracking-widest text-xs cursor-not-allowed border border-slate-200/40 shadow-none';
         addBtn.disabled = true;
+        hideSpecReadout();
     }
 }
 
 function resetForm() {
     const inputs = document.querySelectorAll('#entry-form input:not([readonly])');
     inputs.forEach(i => {
-        if(i.id !== 'lipLeft' && i.id !== 'lipRight') {
-            i.value = "";
-        }
+        if (i.id !== 'lipLeft' && i.id !== 'lipRight') i.value = '';
+        i.classList.remove('input-invalid');
     });
     document.getElementById('thick').value = '0.500';
-    document.getElementById('lipLeft').value = "0.188";
-    document.getElementById('lipRight').value = "0.188";
+    document.getElementById('lipLeft').value = '0.188';
+    document.getElementById('lipRight').value = '0.188';
     document.getElementById('display-frame').classList.remove('is-live');
+    setValidationMessage('');
     validateInput();
 }
 
+function applyModeButtonStates(mode) {
+    const modes = {
+        dovetail: { btn: 'btn-dovetail', color: 'bg-orange-600' },
+        dowel: { btn: 'btn-dowel', color: 'bg-blue-600' },
+        hybrid: { btn: 'btn-hybrid', color: 'bg-indigo-600' },
+        threeQuarterFront: { btn: 'btn-34front', color: 'bg-amber-700' }
+    };
+
+    Object.entries(modes).forEach(([key, cfg]) => {
+        const el = document.getElementById(cfg.btn);
+        if (!el) return;
+        el.className = key === mode
+            ? `${MODE_BTN_ACTIVE} ${cfg.color}`
+            : MODE_BTN_INACTIVE;
+    });
+}
+
 function setMode(mode) {
-    const filledInputs = Array.from(document.querySelectorAll('#entry-form input:not([readonly])')).some(i => i.value.trim() !== "" && i.id !== 'lipLeft' && i.id !== 'lipRight');
-    if (filledInputs && !confirm("Switch construction mode? This will discard your unsaved specifications.")) {
+    const filledInputs = Array.from(document.querySelectorAll('#entry-form input:not([readonly])')).some(i => i.value.trim() !== '' && i.id !== 'lipLeft' && i.id !== 'lipRight');
+    if (filledInputs && !confirm('Switch construction mode? This will discard your unsaved specifications.')) {
         return;
     }
 
@@ -171,18 +297,10 @@ function setMode(mode) {
     const chip = document.getElementById('status-chip');
     const lipContainer = document.getElementById('lip-fields-container');
     const autoPocketCheckbox = document.getElementById('autoPocketToggle');
-    
-    resetForm(); 
-    autoPocketCheckbox.checked = false; 
 
-    const inactiveClass = 'py-2 rounded-md text-[9px] font-black uppercase transition-all text-slate-500 hover:text-slate-700 hover:bg-white/50 text-center';
-    const btnDovetail = document.getElementById('btn-dovetail');
-    const btnDowel = document.getElementById('btn-dowel');
-    const btnHybrid = document.getElementById('btn-hybrid');
-    const btn34Front = document.getElementById('btn-34front');
-    
-    btnDovetail.className = inactiveClass; btnDowel.className = inactiveClass; 
-    btnHybrid.className = inactiveClass; btn34Front.className = inactiveClass;
+    resetForm();
+    autoPocketCheckbox.checked = false;
+    applyModeButtonStates(mode);
 
     if (mode === 'threeQuarterFront') {
         lipContainer.classList.remove('hidden');
@@ -190,36 +308,30 @@ function setMode(mode) {
         lipContainer.classList.add('hidden');
     }
 
-    const activeClass = 'py-2 rounded-md text-[9px] font-black uppercase transition-all text-white shadow-sm text-center ';
-
     if (mode === 'dovetail') {
-        body.className = 'p-4 lg:p-8 mode-dovetail';
-        header.className = 'bg-orange-950 p-4 text-white flex justify-between items-center rounded-2xl shadow-md border-t-2 border-orange-600';
+        body.className = 'p-4 lg:p-8 mode-dovetail text-slate-800';
+        header.className = 'bg-orange-950 px-5 sm:px-6 py-4 text-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 rounded-2xl commercial-shadow mb-6 border-t-2 border-orange-600 transition-all';
         title.textContent = 'Dovetail Mode';
         chip.textContent = 'Active: Dovetail';
         chip.className = 'px-3.5 py-1.5 bg-orange-50 border border-orange-200 text-orange-700 text-[10px] font-bold uppercase rounded-full tracking-widest';
-        btnDovetail.className = activeClass + 'bg-orange-600';
     } else if (mode === 'dowel') {
-        body.className = 'p-4 lg:p-8 mode-dowel';
-        header.className = 'bg-slate-900 p-4 text-white flex justify-between items-center rounded-2xl shadow-md border-t-2 border-blue-600';
+        body.className = 'p-4 lg:p-8 mode-dowel text-slate-800';
+        header.className = 'bg-slate-900 px-5 sm:px-6 py-4 text-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 rounded-2xl commercial-shadow mb-6 border-t-2 border-blue-600 transition-all';
         title.textContent = 'Dowel Mode';
         chip.textContent = 'Active: Dowel';
         chip.className = 'px-3.5 py-1.5 bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-bold uppercase rounded-full tracking-widest';
-        btnDowel.className = activeClass + 'bg-blue-600';
     } else if (mode === 'hybrid') {
-        body.className = 'p-4 lg:p-8 mode-hybrid';
-        header.className = 'bg-indigo-950 p-4 text-white flex justify-between items-center rounded-2xl shadow-md border-t-2 border-indigo-600';
+        body.className = 'p-4 lg:p-8 mode-hybrid text-slate-800';
+        header.className = 'bg-indigo-950 px-5 sm:px-6 py-4 text-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 rounded-2xl commercial-shadow mb-6 border-t-2 border-indigo-600 transition-all';
         title.textContent = 'DT Front / DWL Back Mode';
         chip.textContent = 'Active: DT Frt / DWL Bk';
         chip.className = 'px-3.5 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-bold uppercase rounded-full tracking-widest';
-        btnHybrid.className = activeClass + 'bg-indigo-600';
     } else if (mode === 'threeQuarterFront') {
-        body.className = 'p-4 lg:p-8 mode-dovetail'; 
-        header.className = 'bg-amber-950 p-4 text-white flex justify-between items-center rounded-2xl shadow-md border-t-2 border-amber-600';
+        body.className = 'p-4 lg:p-8 mode-threeQuarterFront text-slate-800';
+        header.className = 'bg-amber-950 px-5 sm:px-6 py-4 text-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 rounded-2xl commercial-shadow mb-6 border-t-2 border-amber-600 transition-all';
         title.textContent = '3/4" Front Only / Dovetail Spec Mode';
         chip.textContent = 'Active: 3/4" Frt DT';
         chip.className = 'px-3.5 py-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-bold uppercase rounded-full tracking-widest';
-        btn34Front.className = activeClass + 'bg-amber-700';
     }
     validateInput();
 }
@@ -227,8 +339,8 @@ function setMode(mode) {
 function generateSVG(data, svgId, showWood, itemMode, isPrint) {
     const svg = document.getElementById(svgId);
     if (!svg) return;
-    
-    const w = parseFloat(data.width); const d = parseFloat(data.depth); 
+
+    const w = parseFloat(data.width); const d = parseFloat(data.depth);
     const h = parseFloat(data.height); const t = parseFloat(data.t);
 
     const calcs = FORMULA_CONFIG.calculateValues(itemMode, data);
@@ -247,6 +359,7 @@ function generateSVG(data, svgId, showWood, itemMode, isPrint) {
     if (itemMode === 'threeQuarterFront') { sideColor = '#78350f'; backColor = '#b45309'; }
 
     const hideNotchLine = !!data.autoPocket;
+    const safeLabel = escapeHTML(data.label);
 
     svg.innerHTML = `
         <defs>
@@ -256,7 +369,7 @@ function generateSVG(data, svgId, showWood, itemMode, isPrint) {
         <path d="${path}" fill="${showWood ? '#dec19e' : 'none'}" stroke="#000" stroke-width="2" />
         
         ${!isPrint ? `
-        <text x="15" y="35" text-anchor="start" font-weight="900" font-size="28" class="uppercase fill-slate-900">${data.label}</text>
+        <text x="15" y="35" text-anchor="start" font-weight="900" font-size="28" class="uppercase fill-slate-900">${safeLabel}</text>
         <text x="15" y="62" text-anchor="start" font-weight="bold" font-size="18" fill="#2563eb">QTY: ${fmt(data.qty)}</text>
         <text x="15" y="85" text-anchor="start" font-weight="bold" font-size="18" fill="#1e40af">H: ${fmt(h)}</text>
         ` : ''}
@@ -285,31 +398,19 @@ function generateSVG(data, svgId, showWood, itemMode, isPrint) {
 }
 
 function updatePreview() {
-    const isAutoChecked = document.getElementById('autoPocketToggle').checked;
-    const data = {
-        label: document.getElementById('label').value || "Unit",
-        qty: parseFloat(document.getElementById('qty').value) || 0,
-        t: parseFloat(document.getElementById('thick').value),
-        width: parseFraction(document.getElementById('width').value),
-        depth: parseFraction(document.getElementById('depth').value),
-        height: parseFraction(document.getElementById('height').value),
-        uDepth: isAutoChecked ? 0 : parseFraction(document.getElementById('uDepth').value),
-        lArm: parseFraction(document.getElementById('lArm').value),
-        rArm: parseFraction(document.getElementById('rArm').value),
-        lipLeft: parseFraction(document.getElementById('lipLeft').value),
-        lipRight: parseFraction(document.getElementById('lipRight').value),
-        autoPocket: isAutoChecked
-    };
-    generateSVG(data, 'preview-svg', true, currentMode, false);
+    const payload = getFormPayload();
+    const calcs = FORMULA_CONFIG.calculateValues(currentMode, payload);
+    generateSVG(payload, 'preview-svg', true, currentMode, false);
+    updateSpecReadout(payload, calcs);
 }
 
 function addToQueue() {
     const sel = document.getElementById('thick');
     const isAutoChecked = document.getElementById('autoPocketToggle').checked;
-    const uniqueHash = Math.random().toString(36).substr(2, 4);
-    
+    const uniqueHash = Math.random().toString(36).slice(2, 6);
+
     const item = {
-        id: Date.now() + '-' + uniqueHash, 
+        id: Date.now() + '-' + uniqueHash,
         mode: currentMode,
         label: document.getElementById('label').value || 'Unit',
         qty: parseFloat(document.getElementById('qty').value) || 1,
@@ -324,42 +425,57 @@ function addToQueue() {
         lipRight: parseFraction(document.getElementById('lipRight').value),
         autoPocket: isAutoChecked
     };
-    queue.push(item); 
+    queue.push(item);
     saveQueueToStorage();
     renderQueue();
     resetForm();
+}
+
+function renderScreenQueueRow(item, index) {
+    const row = document.createElement('div');
+    row.className = 'queue-row flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-white rounded-xl border border-slate-200 text-sm';
+
+    const modeLabel = getModeLabel(item.mode, item.autoPocket);
+    const dims = `W ${fmt(item.width)} × D ${fmt(item.depth)} × H ${fmt(item.height)}`;
+
+    row.innerHTML = `
+        <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="text-[10px] font-black text-slate-400">#${index + 1}</span>
+                <span class="font-extrabold text-slate-800">${escapeHTML(item.label)}</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-md bg-slate-100 font-bold text-slate-600 uppercase tracking-wide">${modeLabel}</span>
+            </div>
+            <p class="text-xs text-slate-500 mt-1.5 font-medium">${dims} · Qty ${fmt(item.qty)} · ${escapeHTML(item.tName || '')}</p>
+        </div>
+        <button type="button" data-id="${escapeHTML(item.id)}" class="queue-del-btn shrink-0 text-rose-600 hover:text-rose-700 font-bold uppercase text-[10px] tracking-wider px-3 py-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 transition-colors">Remove</button>
+    `;
+    return row;
 }
 
 function renderQueue() {
     const list = document.getElementById('queue-list');
     const printList = document.getElementById('print-items');
     if (!list || !printList) return;
-    list.innerHTML = ''; printList.innerHTML = '';
+
+    list.innerHTML = '';
+    printList.innerHTML = '';
+
     queue.forEach((item, index) => {
-        const row = document.createElement('div');
-        row.className = "flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-200/80 text-sm shadow-sm font-medium";
-        
-        let labelName = item.mode.toUpperCase();
-        if (item.mode === 'hybrid') labelName = 'DT FRT / DWL BK';
-        if (item.autoPocket && item.mode === 'threeQuarterFront') labelName = '3/4" FRT / DWL INSIDE';
-        else if (item.autoPocket) labelName += ' (AUTO-FLUSH)';
-        
-        row.innerHTML = `<span class="text-slate-700"><b>${index+1}. ${item.label}</b> <span class="text-[10px] ml-1.5 px-2 py-0.5 rounded-md bg-slate-200/60 font-bold text-slate-500">${labelName}</span></span> <button data-id="${item.id}" class="queue-del-btn text-rose-600 font-bold uppercase text-[10px] hover:underline tracking-wider">Delete</button>`;
-        list.appendChild(row);
-        
+        list.appendChild(renderScreenQueueRow(item, index));
+
         const container = document.createElement('div');
-        container.className = "item-container";
-        
+        container.className = 'item-container';
+
         let displayMode = 'Dovetail';
         if (item.mode === 'dowel') displayMode = 'Dowel';
         if (item.mode === 'hybrid') displayMode = 'DT Front / DWL Back';
         if (item.mode === 'threeQuarterFront') {
             displayMode = item.autoPocket ? '3/4" Front and Dowel U-Depth Inside' : '3/4" Front Dovetail';
         }
-        
+
         let specialInstructionTag = '';
         if (item.mode === 'hybrid') specialInstructionTag = `<div class="hybrid-spec-tag">Front: Dovetail | Back: Dowel ${item.autoPocket ? '(Auto-Flush Pocket)' : ''}</div>`;
-        
+
         if (item.mode === 'threeQuarterFront') {
             if (item.autoPocket) {
                 specialInstructionTag = `<div class="hybrid-spec-tag bg-rose-100 text-rose-950 px-1 py-0.5 rounded font-black text-center border border-rose-300">⚠️ PRODUCTION NOTE: 3/4" FRONT / DOWEL TO INSIDE FACE (L-Lip: ${fmt(item.lipLeft)} | R-Lip: ${fmt(item.lipRight)})</div>`;
@@ -367,14 +483,14 @@ function renderQueue() {
                 specialInstructionTag = `<div class="hybrid-spec-tag bg-amber-100 text-amber-950 px-1 py-0.5 rounded font-black text-center border border-amber-300">⚠️ PRODUCTION NOTE: 3/4" FRONT ONLY SPEC (L-Lip: ${fmt(item.lipLeft)} | R-Lip: ${fmt(item.lipRight)})</div>`;
             }
         }
-        
+
         if (item.autoPocket && item.mode === 'dovetail') {
             specialInstructionTag = `<div class="hybrid-spec-tag bg-blue-50 text-blue-950 px-1 py-0.5 rounded font-black text-center border border-blue-300">⚠️ PRODUCTION NOTE: FLUSH U-DEPTH POCKET DOVETAIL</div>`;
         }
         if (item.autoPocket && item.mode === 'dowel') {
             specialInstructionTag = `<div class="hybrid-spec-tag bg-blue-50 text-blue-950 px-1 py-0.5 rounded font-black text-center border border-blue-300">⚠️ PRODUCTION NOTE: FLUSH U-DEPTH POCKET DOWEL</div>`;
         }
-        
+
         container.innerHTML = `
             <div class="print-header-single">
                 <div class="header-left">#${index+1} ${displayMode} - ${item.label}</div>
@@ -388,23 +504,25 @@ function renderQueue() {
 
     list.querySelectorAll('.queue-del-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            removeItem(e.target.getAttribute('data-id'));
+            removeItem(e.currentTarget.getAttribute('data-id'));
         });
     });
+
+    updateQueueChrome();
 }
 
-function removeItem(id) { 
-    queue = queue.filter(i => i.id !== id); 
+function removeItem(id) {
+    queue = queue.filter(i => i.id !== id);
     saveQueueToStorage();
-    renderQueue(); 
+    renderQueue();
 }
 
-function clearQueue() { 
-    if(confirm("Clear order?")) { 
-        queue = []; 
+function clearQueue() {
+    if (confirm('Clear order?')) {
+        queue = [];
         saveQueueToStorage();
-        renderQueue(); 
-    } 
+        renderQueue();
+    }
 }
 
 function saveQueueToStorage() {
@@ -423,6 +541,7 @@ window.removeItem = removeItem;
 window.clearQueue = clearQueue;
 
 window.onload = function() {
+    applyModeButtonStates(currentMode);
     renderQueue();
     validateInput();
 };
