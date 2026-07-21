@@ -63,3 +63,19 @@ test('dowel display arms subtract 2× thickness', () => {
     approx(r.dLA, 3, 'left arm display');
     approx(r.dRA, 3, 'right arm display');
 });
+
+test('3/4" front notch and U-pocket use sides/back thickness like dovetail', () => {
+    const r = FORMULA_CONFIG.calculateValues('threeQuarterFront', {
+        ...basePayload,
+        t: 0.472,
+        depth: 18,
+        lArm: 5,
+        rArm: 5,
+        uDepth: 5
+    });
+    // gap = 20 - 5 - 5 = 10; notch = 10 + 2*0.472 = 10.944
+    approx(r.notchHorizontalWidth, 10.944, 'notch width');
+    // U-pocket same as dovetail: 5 + 0.472 - 0.318 = 5.154
+    approx(r.udDisplay, 5.154, 'u-pocket depth');
+    approx(r.backWidth, 20.376, 'back width with lips');
+});

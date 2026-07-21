@@ -68,12 +68,13 @@ export const FORMULA_CONFIG = {
             
             sideLen = d - ((frontDeduction / 2) + (deduction / 2) + 0.062);
             // Toggle ON: Shortened Side Blank - Fixed 3/4" Front Panel Thickness (Old Mode 5)
-            // Toggle OFF: Restored old way manual spreadsheet calculation (Old Mode 4)
-            udDisplay = autoPocket ? (d - (deduction / 2) - frontT) : (udRaw + frontT - frontDeduction);
+            // Toggle OFF: Same as dovetail — pocket + sides/back thickness − deduction
+            udDisplay = autoPocket ? (d - (deduction / 2) - frontT) : (udRaw + t - deduction);
             
             dLA = laVal; 
             dRA = raVal;
-            notchHorizontalWidth = gap + (2 * frontT);
+            // Notch uses sides/back thickness (dropdown), not fixed 3/4" front panel
+            notchHorizontalWidth = gap + (2 * t);
         }
 
         return { sideLen, backWidth, udDisplay, dLA, dRA, notchHorizontalWidth };
